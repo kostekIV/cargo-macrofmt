@@ -1,23 +1,23 @@
 [package]
-authors = ["Jan Kościsz <koscis.j@gmail.com>"]
-categories = ["command-line-utilities", "development-tools"]
+authors     = ["Jan Kościsz <koscis.j@gmail.com>"]
+categories  = ["command-line-utilities", "development-tools"]
 description = "Format Rust macro attributes across multiple lines"
-edition = "2024"
-keywords = ["cargo", "development-tools", "formatting", "macro"]
-license = "MIT"
-name = "cargo-macrofmt"
-repository = "https://github.com/kostekIV/cargo-macrofmt"
-version = "0.1.0"
+edition     = "2024"
+keywords    = ["cargo", "development-tools", "formatting", "macro"]
+license     = "MIT"
+name        = "cargo-macrofmt"
+repository  = "https://github.com/kostekIV/cargo-macrofmt"
+version     = "0.1.0"
 
 [[bin]]
 name = "cargo-macrofmt"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = { version = "1" }
-clap = { version = "4", features = ["derive"] }
+anyhow      = { version = "1" }
+clap        = { version = "4", features = ["derive"] }
 proc-macro2 = { version = "1.0.103", features = ["span-locations"] }
-similar = { version = "2.7.0" }
-syn = { version = "2.0.111", features = ["extra-traits", "full", "visit"] }
-toml_edit = { version = "0.23.9" }
-walkdir = { version = "2.5" }
+similar     = { version = "2.7.0" }
+syn         = { version = "2.0.111", features = ["extra-traits", "full", "visit"] }
+toml_edit   = { version = "0.23.9" }
+walkdir     = { version = "2.5" }

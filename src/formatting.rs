@@ -24,7 +24,7 @@ pub fn format_macro_attr(
 }
 
 pub fn reindent_nested_content(arg: &str, base_indent: usize, config: &ResolvedConfig) -> String {
-    let lines: Vec<&str> = arg.lines().collect();
+    let lines: Vec<_> = arg.lines().collect();
 
     if lines.len() <= 1 {
         return arg.to_string();

@@ -2,16 +2,20 @@ use anyhow::Result;
 use proc_macro2 as _;
 use syn::{File, parse_file, visit::Visit};
 
-use crate::visitor::InstrumentVisitor;
+use crate::visitor::MacroVisitor;
 
 mod formatting;
 mod visitor;
 pub mod workspace;
 
-pub fn format_file(content: &str, max_line_length: usize) -> Result<String> {
+pub fn format_file(
+    content: &str,
+    max_line_length: usize,
+    macros_to_format: &[String],
+) -> Result<String> {
     let file: File = parse_file(content)?;
 
-    let mut visitor = InstrumentVisitor::new(content, max_line_length);
+    let mut visitor = MacroVisitor::new(content, max_line_length, macros_to_format);
     visitor.visit_file(&file);
 
     if visitor.replacements.is_empty() {

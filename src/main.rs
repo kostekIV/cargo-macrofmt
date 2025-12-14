@@ -16,7 +16,13 @@ struct Args {
     #[arg(long, default_value = "100")]
     max_line_length: usize,
 
-    #[arg(value_name = "FILE")]
+    #[arg(short, long, value_name = "MACRO", required = true, num_args = 1..)]
+    macros_to_format: Vec<String>,
+
+    #[arg(short, long, value_name = "DIR", default_values = ["target"])]
+    ignore_dirs: Vec<String>,
+
+    #[arg(short, long, value_name = "FILE")]
     file: Option<PathBuf>,
 }
 
@@ -32,23 +38,38 @@ fn print_diff(path: &Path, original: &str, formatted: &str) {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let files = if let Some(file) = args.file {
-        if !file.exists() {
-            bail!("File does not exist: {}", file.display());
+    let files = if let Some(path) = args.file {
+        if !path.exists() {
+            bail!("Path does not exist: {}", path.display());
         }
 
-        vec![file]
+        if path.is_dir() {
+            let root = path.join("Cargo.toml");
+            if !root.exists() {
+                bail!("Directory does not contain Cargo.toml: {}", path.display());
+            }
+            let members = workspace::get_crate_directories(&root)?;
+            workspace::find_rust_files(&members, &args.ignore_dirs)
+        } else if path.extension().map_or(false, |ext| ext == "rs") {
+            vec![path]
+        } else {
+            bail!("Not a Rust file: {}", path.display());
+        }
     } else {
         let root = workspace::find_workspace_root()?;
-        let members = workspace::get_workspace_members(&root)?;
-        workspace::find_rust_files(&members)
+        let members = workspace::get_crate_directories(&root)?;
+        workspace::find_rust_files(&members, &args.ignore_dirs)
     };
 
     let mut has_changes = false;
 
     for path in files {
         let content = fs::read_to_string(&path)?;
-        let formatted = match cargo_macrofmt::format_file(&content, args.max_line_length) {
+        let formatted = match cargo_macrofmt::format_file(
+            &content,
+            args.max_line_length,
+            &args.macros_to_format,
+        ) {
             Ok(f) => f,
             Err(e) => {
                 eprintln!("Failed to parse {}: {e}", path.display());

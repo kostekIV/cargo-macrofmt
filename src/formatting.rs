@@ -1,4 +1,4 @@
-pub fn format_instrument_attr(args: &[String], indent: usize) -> String {
+pub fn format_macro_attr(ident: String, args: &[String], indent: usize) -> String {
     let indent_str = " ".repeat(indent);
     let arg_indent = " ".repeat(indent + 4);
 
@@ -11,7 +11,7 @@ pub fn format_instrument_attr(args: &[String], indent: usize) -> String {
         .collect::<Vec<_>>()
         .join("\n");
 
-    format!("#[instrument(\n{formatted_args}\n{indent_str})]")
+    format!("#[{ident}(\n{formatted_args}\n{indent_str})]")
 }
 
 pub fn reindent_nested_content(arg: &str, base_indent: usize) -> String {

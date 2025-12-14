@@ -19,7 +19,12 @@ fn find_test_cases() -> Vec<PathBuf> {
 }
 
 fn run_formatter(input: &str, max_line_length: usize) -> String {
-    format_file(input, max_line_length).expect("Failed to format file")
+    format_file(
+        input,
+        max_line_length,
+        &["instrument".to_owned(), "test_macro".to_owned()],
+    )
+    .expect("Failed to format file")
 }
 
 #[test]

@@ -22,6 +22,12 @@ async fn handle_msg(&mut self, msg: Request<T>) -> Result<(), ProcessError> {
 
 Most attribute macros used in practice (`tracing::instrument`, `tokio::test`, etc.) are not whitespace-sensitive and can benefit from basic formatting when they exceed line length limits.
 
+This tool was created because I am too lazy to format all of them by hand (and because I like to enforce a single consistent format when possible).
+
+## Similar Tools
+
+To the best of my knowledge, no other tool provides this specific functionality for Rust macro formatting. If you know of an existing tool that formats macro attributes, please let me know - I would genuinely love to use it instead :D.
+
 ## Solution
 
 `cargo-macrofmt` is a simple, best-effort formatter that splits long macro attributes across multiple lines. It formats only by splitting into new lines and adding commas at the end. It does not reformat arguments themselves unless they contain nested parentheses.
@@ -53,12 +59,18 @@ todo
 
 todo
 
+## Best Practices
+
+**Run `rustfmt` first, then `cargo-macrofmt`** - this ensures your code follows standard Rust formatting conventions before applying macro-specific formatting.
+
 ## Command-line Options
 
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
-| `--check` | | Check formatting without modifying files | false |
-| `--max-line-length` | | Maximum line length before formatting | 80 |
+| `--check` | | Check formatting without modifying files | `false` |
+| `--max-line-length` | | Maximum line length before formatting | `80` |
+| `--indent-width` | | Number of spaces/tabs per indentation level | `4` |
+| `--indent-char` | | Character to use for indentation (`space` or `tab`) | `space` |
 | `--macros-to-format` | `-m` | Macro names to format (required) | - |
 | `--ignore-dirs` | `-i` | Directory names to ignore | `["target"]` |
 | `--file` | `-f` | Specific file or directory to format | workspace root |
@@ -76,28 +88,59 @@ This allows flexible matching without requiring full path specification.
 
 The formatter is a simple, best-effort tool that:
 
-1. Only formats macros specified via `-m` flag
-2. Only formats when first line exceeds `--max-line-length`
-3. Splits arguments across multiple lines with 4-space indentation
+1. Only formats macros specified via `-m` flag or config file
+2. Only formats when first line exceeds configured line length
+3. Splits arguments across multiple lines with configurable indentation
 4. Adds trailing commas after each argument
 5. Preserves nested structures (like `fields(...)`) with additional indentation
 6. Does not reformat argument content itself (preserves spacing and tokens as-is)
 
 ## Examples
 
-### Multiple macros in one project
+### With configuration file
 
-```bash
-cargo macrofmt -m instrument -m my_custom_macro -m benchmark
+Create `macrofmt.toml`:
+
+```toml
+max_line_length = 100
+macros_to_format = ["instrument", "benchmark"]
+```
+
+Then simply run:
+
+```sh
+cargo macrofmt
+```
+
+### Multiple macros
+
+```sh
+cargo macrofmt -m instrument -m test_macro -m benchmark
+```
+
+### Custom indentation
+
+```sh
+# Use 2-space indentation
+cargo macrofmt -m instrument --indent-width 2
+
+# Use tabs
+cargo macrofmt -m instrument --indent-char tab
 ```
 
 ### Integration with CI
 
-```bash
+```sh
 # Check formatting in CI
 cargo macrofmt -m instrument --check
 
 # Exit code 1 if formatting needed, 0 if already formatted
+```
+
+### Ignore additional directories
+
+```sh
+cargo macrofmt -m instrument -i target -i generated -i vendor
 ```
 
 ## License

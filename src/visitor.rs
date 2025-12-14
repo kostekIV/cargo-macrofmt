@@ -131,9 +131,9 @@ fn extract_args_from_source(source: &str) -> Vec<String> {
 
     let mut args = Vec::new();
     let mut current = String::new();
-    let mut depth = 0;
     let mut in_string = None;
     let mut escape = false;
+    let mut braces = vec![];
 
     for ch in args_text.chars() {
         if escape {
@@ -157,13 +157,19 @@ fn extract_args_from_source(source: &str) -> Vec<String> {
             },
             '(' | '{' | '[' if in_string.is_none() => {
                 current.push(ch);
-                depth += 1;
+                braces.push(ch);
             },
             ')' | '}' | ']' if in_string.is_none() => {
+                if matches!(
+                    (braces.last(), ch),
+                    (Some('('), ')') | (Some('{'), '}') | (Some('['), ']')
+                ) {
+                    braces.pop();
+                }
+
                 current.push(ch);
-                depth -= 1;
             },
-            ',' if depth == 0 && in_string.is_none() => {
+            ',' if braces.is_empty() && in_string.is_none() => {
                 let trimmed = current.trim();
                 if !trimmed.is_empty() {
                     args.push(trimmed.to_string());
@@ -324,5 +330,41 @@ mod tests {
     fn char_with_double_inside_string() {
         let result = extract_args_from_source("#[instrument(path = ',', x = \"'\"'\")]");
         assert_eq!(result, vec!["path = ','", "x = \"'\"'\""]);
+    }
+
+    #[test]
+    fn mismatched_braces_treated_as_single_arg() {
+        let result = extract_args_from_source("#[macro(vec![1, 2})]");
+        assert_eq!(result, vec!["vec![1, 2}"]);
+    }
+
+    #[test]
+    fn nested_different_brace_types() {
+        let result = extract_args_from_source("#[macro(outer{inner[value]})]");
+        assert_eq!(result, vec!["outer{inner[value]}"]);
+    }
+
+    #[test]
+    fn multiple_args_with_mixed_nested_braces() {
+        let result = extract_args_from_source("#[macro(vec![1, 2], map{a: b}, tuple(x, y))]");
+        assert_eq!(result, vec!["vec![1, 2]", "map{a: b}", "tuple(x, y)"]);
+    }
+
+    #[test]
+    fn deeply_nested_mixed_braces() {
+        let result = extract_args_from_source("#[macro(outer(middle[inner{value}]))]");
+        assert_eq!(result, vec!["outer(middle[inner{value}])"]);
+    }
+
+    #[test]
+    fn comma_inside_nested_braces() {
+        let result = extract_args_from_source("#[macro(skip, fields{a: 1, b: 2}, level)]");
+        assert_eq!(result, vec!["skip", "fields{a: 1, b: 2}", "level"]);
+    }
+
+    #[test]
+    fn mismatched_closing_before_comma() {
+        let result = extract_args_from_source("#[macro(vec![1}, x))]");
+        assert_eq!(result, vec!["vec![1}, x)"]);
     }
 }

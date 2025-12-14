@@ -1,21 +1,23 @@
 use anyhow::Result;
-use proc_macro2 as _;
+use similar::TextDiff;
 use syn::{File, parse_file, visit::Visit};
 
-use crate::visitor::MacroVisitor;
-
+mod config;
 mod formatting;
 mod visitor;
-pub mod workspace;
+mod workspace;
 
-pub fn format_file(
-    content: &str,
-    max_line_length: usize,
-    macros_to_format: &[String],
-) -> Result<String> {
+pub use config::{Config, IndentChar, ResolvedConfig};
+pub use formatting::{format_macro_attr, reindent_nested_content};
+pub use visitor::MacroVisitor;
+pub use workspace::{find_rust_files, find_workspace_root, get_crate_directories};
+
+pub const CONFIG_FILENAME: &str = "macrofmt.toml";
+
+pub fn format_file(content: &str, config: &ResolvedConfig) -> Result<String> {
     let file: File = parse_file(content)?;
 
-    let mut visitor = MacroVisitor::new(content, max_line_length, macros_to_format);
+    let mut visitor = MacroVisitor::new(content, config);
     visitor.visit_file(&file);
 
     if visitor.replacements.is_empty() {
@@ -36,4 +38,14 @@ pub fn format_file(
     result.push_str(&content[last_pos..]);
 
     Ok(result)
+}
+
+pub fn print_diff(expected: &str, result: &str, header_a: &str, header_b: &str) -> Result<()> {
+    TextDiff::from_lines(expected, result)
+        .unified_diff()
+        .header(header_a, header_b)
+        .context_radius(3)
+        .to_writer(std::io::stderr())?;
+
+    Ok(())
 }

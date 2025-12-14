@@ -4,8 +4,7 @@ use std::{
 };
 
 use anyhow::{Result, anyhow, bail};
-use cargo_macrofmt::format_file;
-use similar::TextDiff;
+use cargo_macrofmt::{IndentChar, ResolvedConfig, format_file, print_diff};
 
 fn find_test_cases() -> Vec<PathBuf> {
     let test_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/cases");
@@ -21,8 +20,13 @@ fn find_test_cases() -> Vec<PathBuf> {
 fn run_formatter(input: &str, max_line_length: usize) -> String {
     format_file(
         input,
-        max_line_length,
-        &["instrument".to_owned(), "test_macro".to_owned()],
+        &ResolvedConfig {
+            max_line_length,
+            indent_width: 4,
+            indent_char: IndentChar::Space,
+            macros_to_format: vec!["instrument".to_owned(), "test_macro".to_owned()],
+            ignore_dirs: vec![],
+        },
     )
     .expect("Failed to format file")
 }
@@ -51,14 +55,12 @@ fn test_all_cases() -> Result<()> {
         let result = run_formatter(&input, 80);
 
         if result != expected {
-            TextDiff::from_lines(&expected, &result)
-                .unified_diff()
-                .header(
-                    &input_path.to_string_lossy(),
-                    &expected_path.to_string_lossy(),
-                )
-                .context_radius(3)
-                .to_writer(std::io::stderr())?;
+            print_diff(
+                &expected,
+                &result,
+                &expected_path.to_string_lossy(),
+                &input_path.to_string_lossy(),
+            )?;
 
             bail!("Test case '{case_name}' failed");
         }

@@ -1,54 +1,59 @@
-pub fn format_macro_attr(ident: String, args: &[String], indent: usize) -> String {
-    let indent_str = " ".repeat(indent);
-    let arg_indent = " ".repeat(indent + 4);
+use crate::config::ResolvedConfig;
+
+pub fn format_macro_attr(
+    ident: String,
+    args: &[String],
+    indent: usize,
+    config: &ResolvedConfig,
+) -> String {
+    let base_indent = config.indent_char.to_string_repeated(indent);
+    let arg_indent = config
+        .indent_char
+        .to_string_repeated(indent + config.indent_width);
 
     let formatted_args = args
         .iter()
         .map(|arg| {
-            let reindented = reindent_nested_content(arg, indent + 4);
+            let reindented = reindent_nested_content(arg, indent + config.indent_width, config);
             format!("{arg_indent}{reindented},")
         })
         .collect::<Vec<_>>()
         .join("\n");
 
-    format!("#[{ident}(\n{formatted_args}\n{indent_str})]")
+    format!("#[{ident}(\n{formatted_args}\n{base_indent})]")
 }
 
-pub fn reindent_nested_content(arg: &str, base_indent: usize) -> String {
+pub fn reindent_nested_content(arg: &str, base_indent: usize, config: &ResolvedConfig) -> String {
     let lines: Vec<&str> = arg.lines().collect();
 
     if lines.len() <= 1 {
         return arg.to_string();
     }
 
-    let mut result = lines[0].trim().to_string();
+    let [first, middle @ .., last] = lines.as_slice() else {
+        return arg.to_string();
+    };
 
-    if lines.len() == 2 {
-        result.push('\n');
-        result.push_str(&" ".repeat(base_indent));
-        result.push_str(lines[1].trim());
+    let mut result = first.trim().to_string();
 
-        return result;
-    }
-
-    let start = 1;
-    let end = lines.len() - 1;
-
-    for line in &lines[start..end] {
+    for line in middle {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
         }
 
         result.push('\n');
-        result.push_str(&" ".repeat(base_indent + 4));
+        result.push_str(
+            &config
+                .indent_char
+                .to_string_repeated(base_indent + config.indent_width),
+        );
         result.push_str(trimmed);
     }
 
     result.push('\n');
-    let trimmed = lines[end].trim();
-    result.push_str(&" ".repeat(base_indent));
-    result.push_str(trimmed);
+    result.push_str(&config.indent_char.to_string_repeated(base_indent));
+    result.push_str(last.trim());
 
     result
 }

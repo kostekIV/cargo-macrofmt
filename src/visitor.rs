@@ -1,23 +1,21 @@
 use syn::{Attribute, Meta, spanned::Spanned, visit::Visit};
 
-use crate::formatting::format_macro_attr;
+use crate::{ResolvedConfig, config::IndentChar, formatting::format_macro_attr};
 
 pub struct MacroVisitor<'a> {
     content: &'a str,
     byte_content: &'a [u8],
     pub replacements: Vec<(usize, usize, String)>,
-    max_line_length: usize,
-    macros_to_format: &'a [String],
+    config: &'a ResolvedConfig,
 }
 
 impl<'a> MacroVisitor<'a> {
-    pub fn new(content: &'a str, max_line_length: usize, macros_to_format: &'a [String]) -> Self {
+    pub fn new(content: &'a str, config: &'a ResolvedConfig) -> Self {
         Self {
             content,
             byte_content: content.as_bytes(),
             replacements: Vec::new(),
-            max_line_length,
-            macros_to_format,
+            config,
         }
     }
 
@@ -41,15 +39,15 @@ impl<'a> MacroVisitor<'a> {
                 continue;
             }
 
-            let indent = detect_indent(self.content, attr_start);
+            let indent = detect_indent(self.content, attr_start, self.config);
             let first_line_end = source_text.find('\n').unwrap_or(source_text.len());
             let first_line_length = indent + first_line_end;
 
-            if first_line_length <= self.max_line_length {
+            if first_line_length <= self.config.max_line_length {
                 continue;
             }
 
-            let formatted = format_macro_attr(ident, &args, indent);
+            let formatted = format_macro_attr(ident, &args, indent, self.config);
 
             self.replacements.push((attr_start, attr_end, formatted));
         }
@@ -63,6 +61,7 @@ impl<'a> MacroVisitor<'a> {
         let last_segment = meta_list.path.segments.last()?;
 
         if !self
+            .config
             .macros_to_format
             .iter()
             .any(|macro_name| last_segment.ident == macro_name)
@@ -113,11 +112,16 @@ fn line_col_to_byte(content: &[u8], line: usize, col: usize) -> usize {
     byte_pos + col
 }
 
-fn detect_indent(content: &str, attr_offset: usize) -> usize {
+fn detect_indent(content: &str, attr_offset: usize, config: &ResolvedConfig) -> usize {
     let lines: Vec<&str> = content[..attr_offset].lines().collect();
     let line = lines.last().unwrap_or(&"");
 
-    line.chars().take_while(|c| c.is_whitespace()).count()
+    let indent_chars = line.chars().take_while(|c| c.is_whitespace()).count();
+
+    match config.indent_char {
+        IndentChar::Space => indent_chars,
+        IndentChar::Tab => indent_chars * config.indent_width,
+    }
 }
 
 fn extract_args_from_source(source: &str) -> Vec<String> {

@@ -82,6 +82,7 @@ impl<'a> MacroVisitor<'a> {
 impl<'a> Visit<'a> for MacroVisitor<'a> {
     fn visit_attribute(&mut self, attr: &'a syn::Attribute) {
         self.process_attr(attr);
+        syn::visit::visit_attribute(self, attr);
     }
 }
 

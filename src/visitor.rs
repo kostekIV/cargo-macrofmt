@@ -1,6 +1,6 @@
 use syn::{Attribute, Meta, spanned::Spanned, visit::Visit};
 
-use crate::{ResolvedConfig, config::IndentChar, formatting::format_macro_attr};
+use crate::{ResolvedConfig, formatting::format_macro_attr};
 
 pub struct MacroVisitor<'a> {
     content: &'a str,
@@ -39,7 +39,7 @@ impl<'a> MacroVisitor<'a> {
                 continue;
             }
 
-            let indent = detect_indent(self.content, attr_start, self.config);
+            let indent = detect_indent(self.content, attr_start);
             let first_line_end = source_text.find('\n').unwrap_or(source_text.len());
             let first_line_length = indent + first_line_end;
 
@@ -112,16 +112,11 @@ fn line_col_to_byte(content: &[u8], line: usize, col: usize) -> usize {
     byte_pos + col
 }
 
-fn detect_indent(content: &str, attr_offset: usize, config: &ResolvedConfig) -> usize {
+fn detect_indent(content: &str, attr_offset: usize) -> usize {
     let lines: Vec<&str> = content[..attr_offset].lines().collect();
     let line = lines.last().unwrap_or(&"");
 
-    let indent_chars = line.chars().take_while(|c| c.is_whitespace()).count();
-
-    match config.indent_char {
-        IndentChar::Space => indent_chars,
-        IndentChar::Tab => indent_chars * config.indent_width,
-    }
+    line.chars().take_while(|c| c.is_whitespace()).count()
 }
 
 fn extract_args_from_source(source: &str) -> Vec<String> {
@@ -137,7 +132,7 @@ fn extract_args_from_source(source: &str) -> Vec<String> {
     let mut args = Vec::new();
     let mut current = String::new();
     let mut depth = 0;
-    let mut in_string = false;
+    let mut in_string = None;
     let mut escape = false;
 
     for ch in args_text.chars() {
@@ -148,23 +143,27 @@ fn extract_args_from_source(source: &str) -> Vec<String> {
         }
 
         match ch {
-            '\\' if in_string => {
+            '\\' if in_string.is_some() => {
                 current.push(ch);
                 escape = true;
             },
-            '"' => {
+            '"' | '\'' => {
                 current.push(ch);
-                in_string = !in_string;
+                if in_string == Some(ch) {
+                    in_string = None;
+                } else if in_string.is_none() {
+                    in_string = Some(ch);
+                }
             },
-            '(' | '{' | '[' if !in_string => {
+            '(' | '{' | '[' if in_string.is_none() => {
                 current.push(ch);
                 depth += 1;
             },
-            ')' | '}' | ']' if !in_string => {
+            ')' | '}' | ']' if in_string.is_none() => {
                 current.push(ch);
                 depth -= 1;
             },
-            ',' if depth == 0 && !in_string => {
+            ',' if depth == 0 && in_string.is_none() => {
                 let trimmed = current.trim();
                 if !trimmed.is_empty() {
                     args.push(trimmed.to_string());
@@ -181,4 +180,149 @@ fn extract_args_from_source(source: &str) -> Vec<String> {
     }
 
     args
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::visitor::extract_args_from_source;
+
+    #[test]
+    fn empty_source() {
+        let result = extract_args_from_source("");
+        assert_eq!(result, Vec::<String>::new());
+    }
+
+    #[test]
+    fn no_parentheses() {
+        let result = extract_args_from_source("instrument");
+        assert_eq!(result, Vec::<String>::new());
+    }
+
+    #[test]
+    fn empty_args() {
+        let result = extract_args_from_source("#[instrument()]");
+        assert_eq!(result, Vec::<String>::new());
+    }
+
+    #[test]
+    fn single_arg() {
+        let result = extract_args_from_source("#[instrument(skip_all)]");
+        assert_eq!(result, vec!["skip_all"]);
+    }
+
+    #[test]
+    fn multiple_args() {
+        let result = extract_args_from_source("#[instrument(level = \"debug\", skip_all)]");
+        assert_eq!(result, vec!["level = \"debug\"", "skip_all"]);
+    }
+
+    #[test]
+    fn args_with_whitespace() {
+        let result = extract_args_from_source("#[instrument(  level = \"debug\"  ,  skip_all  )]");
+        assert_eq!(result, vec!["level = \"debug\"", "skip_all"]);
+    }
+
+    #[test]
+    fn nested_parentheses() {
+        let result = extract_args_from_source("#[instrument(fields(count = x.len()))]");
+        assert_eq!(result, vec!["fields(count = x.len())"]);
+    }
+
+    #[test]
+    fn nested_with_multiple_args() {
+        let result = extract_args_from_source(
+            "#[instrument(level = \"debug\", fields(count = x.len(), status = \"ok\"), skip_all)]",
+        );
+        assert_eq!(
+            result,
+            vec![
+                "level = \"debug\"",
+                "fields(count = x.len(), status = \"ok\")",
+                "skip_all"
+            ]
+        );
+    }
+
+    #[test]
+    fn string_with_comma() {
+        let result = extract_args_from_source("#[instrument(name = \"hello, world\")]");
+        assert_eq!(result, vec!["name = \"hello, world\""]);
+    }
+
+    #[test]
+    fn string_with_escaped_quote() {
+        let result = extract_args_from_source("#[instrument(name = \"say \\\"hello\\\"\")]");
+        assert_eq!(result, vec!["name = \"say \\\"hello\\\"\""]);
+    }
+
+    #[test]
+    fn multiple_delimiter_types() {
+        let result = extract_args_from_source("#[macro(vec![1, 2, 3], map {a: b})]");
+        assert_eq!(result, vec!["vec![1, 2, 3]", "map {a: b}"]);
+    }
+
+    #[test]
+    fn deeply_nested() {
+        let result = extract_args_from_source("#[macro(outer(inner(deepest(value))))]");
+        assert_eq!(result, vec!["outer(inner(deepest(value)))"]);
+    }
+
+    #[test]
+    fn complex_real_world_example() {
+        let result = extract_args_from_source(
+            "#[instrument(name = \"ws-service\", target = LOG_TARGET, skip_all, fields(connector_count = self.connectors.len()))]",
+        );
+        assert_eq!(
+            result,
+            vec![
+                "name = \"ws-service\"",
+                "target = LOG_TARGET",
+                "skip_all",
+                "fields(connector_count = self.connectors.len())"
+            ]
+        );
+    }
+
+    #[test]
+    fn trailing_comma() {
+        let result = extract_args_from_source("#[instrument(skip_all,)]");
+        assert_eq!(result, vec!["skip_all"]);
+    }
+
+    #[test]
+    fn multiple_trailing_commas() {
+        let result = extract_args_from_source("#[instrument(skip_all,,)]");
+        assert_eq!(result, vec!["skip_all"]);
+    }
+
+    #[test]
+    fn newlines_in_args() {
+        let result =
+            extract_args_from_source("#[instrument(\n    level = \"debug\",\n    skip_all\n)]");
+        assert_eq!(result, vec!["level = \"debug\"", "skip_all"]);
+    }
+
+    #[test]
+    fn string_with_escaped_backslash() {
+        let result = extract_args_from_source("#[instrument(path = \"C:\\\\Users\\\\\")]");
+        assert_eq!(result, vec!["path = \"C:\\\\Users\\\\\""]);
+    }
+
+    #[test]
+    fn char_with_comma() {
+        let result = extract_args_from_source("#[instrument(path = ',')]");
+        assert_eq!(result, vec!["path = ','"]);
+    }
+
+    #[test]
+    fn char_with_comma_inside_string() {
+        let result = extract_args_from_source("#[instrument(path = ',', x = \"','\")]");
+        assert_eq!(result, vec!["path = ','", "x = \"','\""]);
+    }
+
+    #[test]
+    fn char_with_double_inside_string() {
+        let result = extract_args_from_source("#[instrument(path = ',', x = \"'\"'\")]");
+        assert_eq!(result, vec!["path = ','", "x = \"'\"'\""]);
+    }
 }

@@ -1,29 +1,31 @@
 use syn::{Attribute, Meta, spanned::Spanned, visit::Visit};
 
-use crate::formatting::format_instrument_attr;
+use crate::formatting::format_macro_attr;
 
-pub struct InstrumentVisitor<'a> {
+pub struct MacroVisitor<'a> {
     content: &'a str,
     byte_content: &'a [u8],
     pub replacements: Vec<(usize, usize, String)>,
     max_line_length: usize,
+    macros_to_format: &'a [String],
 }
 
-impl<'a> InstrumentVisitor<'a> {
-    pub fn new(content: &'a str, max_line_length: usize) -> Self {
+impl<'a> MacroVisitor<'a> {
+    pub fn new(content: &'a str, max_line_length: usize, macros_to_format: &'a [String]) -> Self {
         Self {
             content,
             byte_content: content.as_bytes(),
             replacements: Vec::new(),
             max_line_length,
+            macros_to_format,
         }
     }
 
     fn process_attrs(&mut self, attrs: &[Attribute]) {
         for attr in attrs {
-            if !is_instrument_attr(attr) {
+            let Some(ident) = self.is_target_macro(attr) else {
                 continue;
-            }
+            };
 
             let span = attr.span();
             let start = span.start();
@@ -47,14 +49,40 @@ impl<'a> InstrumentVisitor<'a> {
                 continue;
             }
 
-            let formatted = format_instrument_attr(&args, indent);
+            let formatted = format_macro_attr(ident, &args, indent);
 
             self.replacements.push((attr_start, attr_end, formatted));
         }
     }
+
+    fn is_target_macro(&self, attr: &Attribute) -> Option<String> {
+        let Meta::List(meta_list) = &attr.meta else {
+            return None;
+        };
+
+        let last_segment = meta_list.path.segments.last()?;
+
+        if !self
+            .macros_to_format
+            .iter()
+            .any(|macro_name| last_segment.ident == macro_name)
+        {
+            return None;
+        }
+
+        let path = meta_list
+            .path
+            .segments
+            .iter()
+            .map(|seg| seg.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::");
+
+        Some(path)
+    }
 }
 
-impl<'a> Visit<'a> for InstrumentVisitor<'a> {
+impl<'a> Visit<'a> for MacroVisitor<'a> {
     fn visit_item_fn(&mut self, node: &'a syn::ItemFn) {
         self.process_attrs(&node.attrs);
         syn::visit::visit_item_fn(self, node);
@@ -90,20 +118,6 @@ fn detect_indent(content: &str, attr_offset: usize) -> usize {
     let line = lines.last().unwrap_or(&"");
 
     line.chars().take_while(|c| c.is_whitespace()).count()
-}
-
-fn is_instrument_attr(attr: &Attribute) -> bool {
-    let Meta::List(meta_list) = &attr.meta else {
-        return false;
-    };
-
-    let segments = &meta_list.path.segments;
-
-    match segments.len() {
-        1 => segments[0].ident == "instrument",
-        2 => segments[0].ident == "tracing" && segments[1].ident == "instrument",
-        _ => false,
-    }
 }
 
 fn extract_args_from_source(source: &str) -> Vec<String> {

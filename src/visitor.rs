@@ -19,38 +19,36 @@ impl<'a> MacroVisitor<'a> {
         }
     }
 
-    fn process_attrs(&mut self, attrs: &[Attribute]) {
-        for attr in attrs {
-            let Some(ident) = self.is_target_macro(attr) else {
-                continue;
-            };
+    fn process_attr(&mut self, attr: &Attribute) {
+        let Some(ident) = self.is_target_macro(attr) else {
+            return;
+        };
 
-            let span = attr.span();
-            let start = span.start();
-            let end = span.end();
+        let span = attr.span();
+        let start = span.start();
+        let end = span.end();
 
-            let attr_start = line_col_to_byte(self.byte_content, start.line, start.column);
-            let attr_end = line_col_to_byte(self.byte_content, end.line, end.column);
+        let attr_start = line_col_to_byte(self.byte_content, start.line, start.column);
+        let attr_end = line_col_to_byte(self.byte_content, end.line, end.column);
 
-            let source_text = &self.content[attr_start..attr_end];
-            let args = extract_args_from_source(source_text);
+        let source_text = &self.content[attr_start..attr_end];
+        let args = extract_args_from_source(source_text);
 
-            if args.len() <= 1 {
-                continue;
-            }
-
-            let indent = detect_indent(self.content, attr_start);
-            let first_line_end = source_text.find('\n').unwrap_or(source_text.len());
-            let first_line_length = indent + first_line_end;
-
-            if first_line_length <= self.config.max_line_length {
-                continue;
-            }
-
-            let formatted = format_macro_attr(ident, &args, indent, self.config);
-
-            self.replacements.push((attr_start, attr_end, formatted));
+        if args.len() <= 1 {
+            return;
         }
+
+        let indent = detect_indent(self.content, attr_start);
+        let first_line_end = source_text.find('\n').unwrap_or(source_text.len());
+        let first_line_length = indent + first_line_end;
+
+        if first_line_length <= self.config.max_line_length {
+            return;
+        }
+
+        let formatted = format_macro_attr(ident, &args, indent, self.config);
+
+        self.replacements.push((attr_start, attr_end, formatted));
     }
 
     fn is_target_macro(&self, attr: &Attribute) -> Option<String> {
@@ -82,19 +80,9 @@ impl<'a> MacroVisitor<'a> {
 }
 
 impl<'a> Visit<'a> for MacroVisitor<'a> {
-    fn visit_item_fn(&mut self, node: &'a syn::ItemFn) {
-        self.process_attrs(&node.attrs);
-        syn::visit::visit_item_fn(self, node);
-    }
-
-    fn visit_impl_item_fn(&mut self, node: &'a syn::ImplItemFn) {
-        self.process_attrs(&node.attrs);
-        syn::visit::visit_impl_item_fn(self, node);
-    }
-
-    fn visit_trait_item_fn(&mut self, node: &'a syn::TraitItemFn) {
-        self.process_attrs(&node.attrs);
-        syn::visit::visit_trait_item_fn(self, node);
+    fn visit_attribute(&mut self, attr: &'a syn::Attribute) {
+        self.process_attr(attr);
+        syn::visit::visit_attribute(self, attr);
     }
 }
 

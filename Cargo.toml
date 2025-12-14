@@ -7,7 +7,7 @@ keywords    = ["cargo", "development-tools", "formatting", "macro"]
 license     = "MIT"
 name        = "cargo-macrofmt"
 repository  = "https://github.com/kostekIV/cargo-macrofmt"
-version     = "0.0.2"
+version     = "0.0.3"
 
 [lib]
 name = "cargo_macrofmt"

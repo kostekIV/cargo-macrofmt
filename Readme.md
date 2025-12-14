@@ -53,11 +53,36 @@ async fn handle_msg(&mut self) -> Result<()> {
 
 ## Installation
 
-todo
+cargo install cargo-macrofmt
 
 ## Usage
 
-todo
+Format workspace with specific macros:
+
+```sh
+cargo macrofmt -m instrument -m test_macro
+```
+
+### Check mode
+
+Check formatting without modifying files:
+
+```sh
+cargo macrofmt -m instrument --check
+```
+
+### Format single file or directory
+
+```sh
+cargo macrofmt -m instrument -f src/main.rs
+cargo macrofmt -m instrument -f ./crates/my-crate
+```
+
+### Custom formatting options
+
+```sh
+cargo macrofmt -m instrument --max-line-length 120 --indent-width 2
+```
 
 ## Best Practices
 
@@ -102,8 +127,11 @@ The formatter is a simple, best-effort tool that:
 Create `macrofmt.toml`:
 
 ```toml
-max_line_length = 100
-macros_to_format = ["instrument", "benchmark"]
+max_line_length = 80 # by default
+macros_to_format = ["instrument", "benchmark"] # empty by default
+ignore_dirs = ["target"] # by default
+indent_width = 4 # by default
+indent_char = "space" # by default or use "tab" for well, tabs
 ```
 
 Then simply run:

@@ -36,9 +36,6 @@ fn main() -> Result<()> {
         if !file.exists() {
             bail!("File does not exist: {}", file.display());
         }
-        if file.extension().is_none_or(|ext| ext != "rs") {
-            bail!("Not a Rust file: {}", file.display());
-        }
 
         vec![file]
     } else {

@@ -22,6 +22,12 @@ async fn handle_msg(&mut self, msg: Request<T>) -> Result<(), ProcessError> {
 
 Most attribute macros used in practice (`tracing::instrument`, `tokio::test`, etc.) are not whitespace-sensitive and can benefit from basic formatting when they exceed line length limits.
 
+This tool was created because I am too lazy to format all of them by hand (and because I like to enforce a single consistent format when possible).
+
+## Similar Tools
+
+To the best of my knowledge, no other tool provides this specific functionality for Rust macro formatting. If you know of an existing tool that formats macro attributes, please let me know - I would genuinely love to use it instead :D.
+
 ## Solution
 
 `cargo-macrofmt` is a simple, best-effort formatter that splits long macro attributes across multiple lines. It formats only by splitting into new lines and adding commas at the end. It does not reformat arguments themselves unless they contain nested parentheses.

@@ -9,6 +9,10 @@ name        = "cargo-macrofmt"
 repository  = "https://github.com/kostekIV/cargo-macrofmt"
 version     = "0.1.0"
 
+[lib]
+name = "cargo_macrofmt"
+path = "src/lib.rs"
+
 [[bin]]
 name = "cargo-macrofmt"
 path = "src/main.rs"

@@ -54,6 +54,7 @@ impl Config {
     }
 }
 
+#[derive(Debug)]
 pub struct ResolvedConfig {
     pub max_line_length: usize,
     pub indent_width: usize,

@@ -3,12 +3,24 @@ use std::{fs, path::PathBuf};
 use anyhow::{Result, bail};
 use cargo_macrofmt::{
     CONFIG_FILENAME, Config, IndentChar, ResolvedConfig, find_rust_files, find_workspace_root,
-    get_crate_directories, print_diff,
+    format_file, get_crate_directories, print_diff,
 };
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use proc_macro2 as _;
 
 const TARGET_DIR: &str = "target";
+
+#[derive(Parser)]
+#[command(name = "cargo-macrofmt", bin_name = "cargo")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Macrofmt(Args),
+}
 
 #[derive(Parser)]
 struct Args {
@@ -133,7 +145,10 @@ fn resolve_files(file: Option<&PathBuf>, ignore_dirs: &[String]) -> Result<Vec<P
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse();
+    let Cli {
+        command: Commands::Macrofmt(args),
+    } = Cli::parse();
+
     let check = args.check;
     let file = args.file.clone();
 
@@ -146,7 +161,8 @@ fn main() -> Result<()> {
 
     for path in files {
         let content = fs::read_to_string(&path)?;
-        let formatted = match cargo_macrofmt::format_file(&content, &resolved) {
+
+        let formatted = match format_file(&content, &resolved) {
             Ok(f) => f,
             Err(e) => {
                 eprintln!("Failed to parse {}: {e}", path.display());

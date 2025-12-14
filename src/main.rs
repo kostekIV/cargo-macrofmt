@@ -8,21 +8,47 @@ use cargo_macrofmt::workspace;
 use clap::Parser;
 use similar::TextDiff;
 
+/// Command-line arguments for cargo-macrofmt
+///
+/// Formats long Rust macro attributes by splitting them across multiple lines
+/// when they exceed a specified line length threshold.
 #[derive(Parser)]
 struct Args {
-    #[arg(long)]
+    #[arg(long, help = "Check if files need formatting without modifying them")]
     check: bool,
 
-    #[arg(long, default_value = "100")]
+    #[arg(
+        long,
+        default_value = "80",
+        help = "Maximum line length before formatting macro attributes"
+    )]
     max_line_length: usize,
 
-    #[arg(short, long, value_name = "MACRO", required = true, num_args = 1..)]
+    #[arg(
+        short,
+        long,
+        value_name = "MACRO",
+        required = true,
+        num_args = 1..,
+        help = "Macro names to format (matches last segment of macro path)"
+    )]
     macros_to_format: Vec<String>,
 
-    #[arg(short, long, value_name = "DIR", default_values = ["target"])]
+    #[arg(
+        short,
+        long,
+        value_name = "DIR",
+        default_values = ["target"],
+        help = "Directory names to ignore during file discovery"
+    )]
     ignore_dirs: Vec<String>,
 
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(
+        short,
+        long,
+        value_name = "FILE",
+        help = "Specific file or directory to format (defaults to workspace root)"
+    )]
     file: Option<PathBuf>,
 }
 
@@ -50,7 +76,7 @@ fn main() -> Result<()> {
             }
             let members = workspace::get_crate_directories(&root)?;
             workspace::find_rust_files(&members, &args.ignore_dirs)
-        } else if path.extension().map_or(false, |ext| ext == "rs") {
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
             vec![path]
         } else {
             bail!("Not a Rust file: {}", path.display());

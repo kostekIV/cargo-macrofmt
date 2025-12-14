@@ -60,9 +60,7 @@ impl<'a> MacroVisitor<'a> {
             return None;
         };
 
-        let Some(last_segment) = meta_list.path.segments.last() else {
-            return None;
-        };
+        let last_segment = meta_list.path.segments.last()?;
 
         if !self
             .macros_to_format

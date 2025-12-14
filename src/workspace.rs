@@ -64,7 +64,7 @@ pub fn find_rust_files(members: &[PathBuf], ignore_dirs: &[String]) -> Vec<PathB
                     !ignore_dirs.iter().any(|d| name == d.as_str())
                 })
                 .filter_map(|e| e.ok())
-                .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
+                .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
                 .map(|e| e.path().to_path_buf())
         })
         .collect()
